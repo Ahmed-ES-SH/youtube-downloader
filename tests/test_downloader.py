@@ -1,0 +1,32 @@
+from unittest.mock import patch, MagicMock
+import pytest
+
+from components.downloader import Downloader, DownloadError
+from components.queue_manager import QueueItem, ItemStatus
+
+
+@patch("components.downloader.yt_dlp.YoutubeDL")
+def test_download_success(mock_ydl):
+    mock_instance = MagicMock()
+    mock_ydl.return_value.__enter__.return_value = mock_instance
+
+    downloader = Downloader()
+    item = QueueItem(index=1, title="Test Video", url="https://yt.com/test")
+    options = {"format": "video", "quality": "best", "output": "/tmp"}
+
+    downloader.download(item, options)
+    mock_instance.download.assert_called_once_with(["https://yt.com/test"])
+
+
+@patch("components.downloader.yt_dlp.YoutubeDL")
+def test_download_failure_raises(mock_ydl):
+    mock_instance = MagicMock()
+    mock_instance.download.side_effect = Exception("Network error")
+    mock_ydl.return_value.__enter__.return_value = mock_instance
+
+    downloader = Downloader()
+    item = QueueItem(index=1, title="Test Video", url="https://yt.com/test")
+    options = {"format": "video", "quality": "best", "output": "/tmp"}
+
+    with pytest.raises(DownloadError):
+        downloader.download(item, options)

@@ -1,0 +1,5 @@
+yt-dlp>=2024.1.0
+InquirerPy>=0.3.4
+rich>=13.0.0
+click>=8.1.0
+pydantic>=2.0.0
