@@ -6,8 +6,13 @@ from components.input_handler import detect_url_type, is_valid_youtube_url
 from components.prompt_handler import (
     get_download_options,
     ask_skip_or_abort,
+    ask_trim_settings,
     confirm_download,
     select_playlist_items,
+    select_playlist_range,
+    select_playlist_range_bounds,
+    validate_time,
+    time_to_seconds,
 )
 from components.queue_manager import QueueManager, ItemStatus
 from components.downloader import Downloader, DownloadError
@@ -24,9 +29,11 @@ from utils.logger import (
 
 
 @click.command()
-@click.option("--url", "-u", default=None, help="YouTube URL to download")
-@click.option("--use-defaults", is_flag=True, help="Skip all prompts, use saved config")
-def main(url: str | None, use_defaults: bool):
+@click.option("--url", "-u", default=None, help="YouTube video or playlist URL to download")
+@click.option("--use-defaults", is_flag=True, help="Skip all interactive prompts, use saved config values instead")
+@click.option("--trim-start", "-ts", default=None, help="Trim start time in MM:SS or HH:MM:SS format (requires --trim-end)")
+@click.option("--trim-end", "-te", default=None, help="Trim end time in MM:SS or HH:MM:SS format (requires --trim-start)")
+def main(url: str | None, use_defaults: bool, trim_start: str | None, trim_end: str | None):
     config = load_config()
 
     print_banner()
@@ -54,15 +61,57 @@ def main(url: str | None, use_defaults: bool):
         print_warning("No videos found.")
         sys.exit(0)
 
+    if trim_start and not trim_end:
+        print_error("--trim-start requires --trim-end")
+        sys.exit(1)
+    if trim_end and not trim_start:
+        print_error("--trim-end requires --trim-start")
+        sys.exit(1)
+
     options = get_download_options(config, use_defaults)
 
-    entries = info["entries"]
-    if info["type"] == "playlist" and not use_defaults:
-        selected = select_playlist_items(entries)
-        if selected:
-            entries = selected
+    if trim_start and trim_end:
+        for t in (trim_start, trim_end):
+            result = validate_time(t)
+            if result is not True:
+                print_error(f"Invalid trim time '{t}': {result}")
+                sys.exit(1)
+        if time_to_seconds(trim_start) >= time_to_seconds(trim_end):
+            print_error("Trim start time must be before end time.")
+            sys.exit(1)
+        options["trim"] = {"start_time": trim_start, "end_time": trim_end}
+    elif not use_defaults:
+        trim = ask_trim_settings()
+        if trim:
+            options["trim"] = trim
 
-    if not confirm_download(len(entries), options["output"]):
+    entries = info["entries"]
+    if info["type"] == "playlist":
+        if use_defaults:
+            options["playlist_items"] = "1-999999"
+            entries = [{"url": url, "title": f"Full playlist: {info['title']}"}]
+            options["playlist_range"] = {"start": 1, "end": info["count"], "total": info["count"]}
+        else:
+            from InquirerPy.base.control import Choice
+            from InquirerPy import inquirer as inq
+            mode = inq.select(
+                message=f"Playlist has {info['count']} videos. Select by:",
+                choices=[
+                    Choice("range", "Range (start to end)"),
+                    Choice("individual", "Individual (checkbox)"),
+                ],
+            ).execute()
+            if mode == "range":
+                start, end = select_playlist_range_bounds(info["count"])
+                options["playlist_items"] = f"{start}-{end}"
+                options["playlist_range"] = {"start": start, "end": end, "total": info["count"]}
+                entries = [{"url": url, "title": f"Playlist items {start}-{end}"}]
+            else:
+                selected = select_playlist_items(entries)
+                if selected:
+                    entries = selected
+
+    if not confirm_download(len(entries), options["output"], options):
         print_info("Download cancelled.")
         sys.exit(0)
 
@@ -70,7 +119,8 @@ def main(url: str | None, use_defaults: bool):
     downloader = Downloader()
 
     for item in queue.pending():
-        print_info(f'Downloading [{item.index}/{len(queue.items)}] \u2014 "{item.title}"')
+        label = item.title
+        print_info(f'Downloading [{item.index}/{len(queue.items)}] \u2014 "{label}"')
         try:
             downloader.download(item, options)
             queue.mark_done(item)

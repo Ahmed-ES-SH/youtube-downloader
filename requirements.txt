@@ -1,4 +1,4 @@
-yt-dlp>=2024.1.0
+yt-dlp @ https://github.com/yt-dlp/yt-dlp/archive/8bdfbfd4461a643e5c37a232b0efd7bcd86a3091.tar.gz
 InquirerPy>=0.3.4
 rich>=13.0.0
 click>=8.1.0
