@@ -1,9 +1,53 @@
+import re
 from pathlib import Path
 
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 
 from components.config_handler import AppConfig
+
+
+def time_to_seconds(t: str) -> int:
+    parts = t.split(":")
+    if len(parts) == 2:
+        return int(parts[0]) * 60 + int(parts[1])
+    return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+
+
+def validate_time(val: str) -> bool | str:
+    if not re.match(r"^\d{1,2}:\d{2}(:\d{2})?$", val):
+        return "Use MM:SS or HH:MM:SS format (e.g. 1:30 or 1:00:00)"
+    parts = val.split(":")
+    if len(parts) == 2:
+        m, s = int(parts[0]), int(parts[1])
+        if s < 60:
+            return True
+    else:
+        _, m, s = int(parts[0]), int(parts[1]), int(parts[2])
+        if m < 60 and s < 60:
+            return True
+    return "Seconds and minutes must be less than 60"
+
+
+def ask_trim_settings() -> dict | None:
+    if not inquirer.confirm(message="Do you want to cut a section?", default=False).execute():
+        return None
+
+    start = inquirer.text(
+        message="Start time (MM:SS or HH:MM:SS):",
+        validate=validate_time,
+    ).execute()
+
+    end = inquirer.text(
+        message="End time (MM:SS or HH:MM:SS):",
+        validate=validate_time,
+    ).execute()
+
+    if time_to_seconds(start) >= time_to_seconds(end):
+        print("  Start time must be before end time. Skipping trim.")
+        return None
+
+    return {"start_time": start, "end_time": end}
 
 
 def get_download_options(config: AppConfig, use_defaults: bool = False) -> dict:
@@ -83,9 +127,37 @@ def ask_skip_or_abort() -> bool:
     return result
 
 
-def confirm_download(count: int, output_path: str) -> bool:
+def _selection_summary(entries: list[dict], start: int, end: int | None = None):
+    end = end or len(entries)
+    print(f"  Selected {end - start + 1} video(s):")
+    for i, entry in enumerate(entries[start - 1:end], start=start):
+        title = entry.get("title", "Unknown")
+        max_w = 60
+        title_short = title if len(title) <= max_w else title[:max_w - 3] + "..."
+        print(f"    {i}. {title_short}")
+
+
+def confirm_download(count: int, output_path: str, options: dict | None = None) -> bool:
+    if options:
+        fmt = "MP3" if options.get("format") == "audio" else "MP4"
+        quality = options.get("quality", "best")
+        audio_bitrate = options.get("audio_bitrate")
+        trim = options.get("trim")
+        playlist_range = options.get("playlist_range")
+        dash = "\u2500"
+
+        print(f"  {dash * 2} Download Summary {dash * 2}")
+        print(f"  Format:  {fmt}" + (f" ({quality})" if fmt == "MP4" else "") + (f" ({audio_bitrate}kbps)" if audio_bitrate else ""))
+        print(f"  Items:   {count}")
+        if playlist_range:
+            print(f"  Range:   #{playlist_range['start']} to #{playlist_range['end']} (of {playlist_range['total']})")
+        if trim:
+            print(f"  Trim:    {trim['start_time']} to {trim['end_time']}")
+        print(f"  Output:  {output_path}")
+        print(f"  {dash * 20}")
+
     return inquirer.confirm(
-        message=f"Ready to download {count} items to: {output_path}. Confirm and start?",
+        message="Confirm and start download?",
         default=True,
     ).execute()
 
@@ -103,3 +175,47 @@ def select_playlist_items(entries: list[dict]) -> list[dict]:
     ).execute()
 
     return selected if selected else entries
+
+
+def select_playlist_range(entries: list[dict]) -> list[dict]:
+    count = len(entries)
+    start_num, end_num = _ask_range_bounds(count)
+    selected = entries[start_num - 1:end_num]
+    _selection_summary(selected, start_num, end_num)
+    return selected
+
+
+def select_playlist_range_bounds(total: int) -> tuple[int, int]:
+    start, end = _ask_range_bounds(total)
+    print(f"  Selected items #{start} to #{end} ({end - start + 1} of {total})")
+    return (start, end)
+
+
+def _ask_range_bounds(total: int) -> tuple[int, int]:
+    def _parse_range_input(val: str) -> tuple[int, int] | str:
+        if "-" in val:
+            parts = val.split("-", 1)
+            if parts[0].isdigit() and parts[1].isdigit():
+                s, e = int(parts[0]), int(parts[1])
+                if 1 <= s <= e <= total:
+                    return (s, e)
+            return f"Use format start-end (e.g. 10-20) within 1-{total}"
+        if val.isdigit():
+            n = int(val)
+            if 1 <= n <= total:
+                return (n, total)
+            return f"Enter a number between 1 and {total}"
+        return f"Enter a number or range (e.g. 10 or 10-20) within 1-{total}"
+
+    def _validator(val: str) -> bool:
+        result = _parse_range_input(val)
+        return isinstance(result, tuple)
+
+    raw = inquirer.text(
+        message=f"Range (1-{total}), e.g. 10-20 or just 10 for 10 to end:",
+        validate=_validator,
+        invalid_message="Invalid range",
+    ).execute()
+
+    result = _parse_range_input(raw)
+    return result

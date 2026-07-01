@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yt-downloader"
+version = "1.0.0"
+description = "Terminal YouTube video/playlist downloader with trim support"
+requires-python = ">=3.11"
+dependencies = [
+    "yt-dlp @ https://github.com/yt-dlp/yt-dlp/archive/8bdfbfd4461a643e5c37a232b0efd7bcd86a3091.tar.gz",
+    "InquirerPy>=0.3.4",
+    "rich>=13.0.0",
+    "click>=8.1.0",
+    "pydantic>=2.0.0",
+]
+
+[project.scripts]
+udown = "main:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+include = ["components*", "utils*"]

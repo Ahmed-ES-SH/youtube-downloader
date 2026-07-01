@@ -2,13 +2,13 @@
 
 ## Project Overview
 
-A minimal CLI application for downloading YouTube videos and playlists.  
+A minimal CLI application for downloading YouTube videos, playlists, and clips.  
 Single-process terminal tool. No web UI, no frontend.
 
 ## Tech Stack
 
 - **Language:** Python 3.11+
-- **Package manager:** pip + venv
+- **Package manager:** pip + pipx
 - **Key dependencies:** yt-dlp, InquirerPy, rich, click, pydantic
 - **Testing:** pytest, pytest-mock
 
@@ -26,19 +26,33 @@ yt-downloader/
 ├── utils/
 │   ├── logger.py            # Colored terminal output (rich)
 │   └── retry.py             # Retry decorator with exponential backoff
+├── bin/
+│   └── udown                # Manual launcher script (alternative to pipx)
 ├── tests/
 │   ├── test_input_handler.py
 │   ├── test_queue_manager.py
 │   ├── test_downloader.py
 │   ├── test_config_handler.py
 │   └── test_integration.py
+├── pyproject.toml
 ├── requirements.txt
 ├── AGENTS.md
-├── PROJECT_PLAN.md
-└── README.md
+└── PROJECT_PLAN.md
 ```
 
 ## Setup
+
+**System dependency:** `ffmpeg` must be installed and in PATH.
+
+### Quick install (recommended)
+
+```bash
+pipx install /path/to/yt-downloader
+```
+
+This makes `udown` available system-wide in its own isolated environment.
+
+### Dev install (venv)
 
 ```bash
 python -m venv venv
@@ -46,19 +60,29 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**System dependency:** `ffmpeg` must be installed and in PATH.
-
 ## Run
 
 ```bash
 # Interactive mode (default)
-python main.py
+udown
 
 # Pass URL directly
-python main.py --url "https://youtube.com/watch?v=..."
+udown --url "https://youtube.com/watch?v=..."
 
 # Use saved config without re-prompting
-python main.py --url "..." --use-defaults
+udown --url "..." --use-defaults
+
+# Download a clip (start at 1:30, end at 2:45)
+udown --url "..." --trim-start 1:30 --trim-end 2:45
+
+# Full non-interactive: defaults + trim
+udown --url "..." --use-defaults --trim-start 0:30 --trim-end 3:00
+```
+
+You can also run directly from source if not installed:
+
+```bash
+python main.py
 ```
 
 ## Test
@@ -94,6 +118,8 @@ mypy .
 | *(none)* | Full interactive mode with prompts |
 | `--url` / `-u` | Skip URL prompt, still ask format/quality/path |
 | `--use-defaults` | Skip all prompts, use saved config values |
+| `--trim-start` / `-ts` | Set clip start time (requires `--trim-end`) |
+| `--trim-end` / `-te` | Set clip end time (requires `--trim-start`) |
 
 ## Common Tasks
 

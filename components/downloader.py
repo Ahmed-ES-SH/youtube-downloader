@@ -43,6 +43,17 @@ class Downloader:
             else:
                 ydl_opts["format"] = f"bestvideo[height<={quality}]+bestaudio/best[height<={quality}]"
 
+        playlist_items = options.get("playlist_items")
+        if playlist_items:
+            ydl_opts["playlist_items"] = playlist_items
+
+        trim = options.get("trim")
+        if trim:
+            ydl_opts["postprocessor_args"] = {
+                "ffmpeg": ["-ss", trim["start_time"], "-to", trim["end_time"]],
+                "ffmpegav": ["-ss", trim["start_time"], "-to", trim["end_time"]],
+            }
+
         return ydl_opts
 
     def _progress_hook(self, d):
