@@ -26,6 +26,18 @@ class Downloader:
             "quiet": True,
             "no_warnings": True,
             "progress_hooks": [self._progress_hook],
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.youtube.com/",
+            },
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android"],
+                },
+            },
+            "js_runtimes": {"nodejs": {}},
+            "concurrent_fragment_downloads": 4,
         }
 
         if fmt == "audio":
@@ -41,7 +53,8 @@ class Downloader:
             if quality == "best":
                 ydl_opts["format"] = "bestvideo+bestaudio/best"
             else:
-                ydl_opts["format"] = f"bestvideo[height<={quality}]+bestaudio/best[height<={quality}]"
+                q = quality.replace("p", "")
+                ydl_opts["format"] = f"bestvideo[height<={q}]+bestaudio/best[height<={q}]/bestvideo[height<={q}]/best"
 
         playlist_items = options.get("playlist_items")
         if playlist_items:
