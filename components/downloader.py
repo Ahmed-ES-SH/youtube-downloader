@@ -48,6 +48,7 @@ class Downloader:
             "retries": 10,
             "http_chunk_size": 10485760,
             "socket_timeout": 30,
+            "windowsfilenames": True,
         }
 
         if fmt == "audio":
@@ -64,6 +65,7 @@ class Downloader:
                 }
             )
         else:
+            ydl_opts["merge_output_format"] = "mp4"
             if quality == "best":
                 ydl_opts["format"] = "bestvideo+bestaudio/best"
             else:
