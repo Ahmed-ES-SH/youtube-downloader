@@ -30,7 +30,9 @@ def validate_time(val: str) -> bool | str:
 
 
 def ask_trim_settings() -> dict | None:
-    if not inquirer.confirm(message="Do you want to cut a section?", default=False).execute():
+    if not inquirer.confirm(
+        message="Do you want to cut a section?", default=False
+    ).execute():
         return None
 
     start = inquirer.text(
@@ -130,31 +132,64 @@ def ask_skip_or_abort() -> bool:
 def _selection_summary(entries: list[dict], start: int, end: int | None = None):
     end = end or len(entries)
     print(f"  Selected {end - start + 1} video(s):")
-    for i, entry in enumerate(entries[start - 1:end], start=start):
+    for i, entry in enumerate(entries[start - 1 : end], start=start):
         title = entry.get("title", "Unknown")
         max_w = 60
-        title_short = title if len(title) <= max_w else title[:max_w - 3] + "..."
+        title_short = title if len(title) <= max_w else title[: max_w - 3] + "..."
         print(f"    {i}. {title_short}")
 
 
-def confirm_download(count: int, output_path: str, options: dict | None = None) -> bool:
+def confirm_download(
+    count: int,
+    output_path: str,
+    options: dict | None = None,
+    auto_confirm: bool = False,
+) -> bool:
     if options:
+        from rich.panel import Panel
+        from rich.table import Table
+
+        from utils.logger import console
+
         fmt = "MP3" if options.get("format") == "audio" else "MP4"
         quality = options.get("quality", "best")
         audio_bitrate = options.get("audio_bitrate")
         trim = options.get("trim")
         playlist_range = options.get("playlist_range")
-        dash = "\u2500"
 
-        print(f"  {dash * 2} Download Summary {dash * 2}")
-        print(f"  Format:  {fmt}" + (f" ({quality})" if fmt == "MP4" else "") + (f" ({audio_bitrate}kbps)" if audio_bitrate else ""))
-        print(f"  Items:   {count}")
+        table = Table(show_header=False, box=None, padding=(0, 1))
+        table.add_column("Key", style="bold cyan")
+        table.add_column("Value", style="white")
+
+        table.add_row(
+            "Format:",
+            f"{fmt}"
+            + (f" ({quality})" if fmt == "MP4" else "")
+            + (f" ({audio_bitrate}kbps)" if audio_bitrate else ""),
+        )
+        table.add_row("Items:", str(count))
         if playlist_range:
-            print(f"  Range:   #{playlist_range['start']} to #{playlist_range['end']} (of {playlist_range['total']})")
+            table.add_row(
+                "Range:",
+                f"#{playlist_range['start']} to #{playlist_range['end']} (of {playlist_range['total']})",
+            )
         if trim:
-            print(f"  Trim:    {trim['start_time']} to {trim['end_time']}")
-        print(f"  Output:  {output_path}")
-        print(f"  {dash * 20}")
+            table.add_row("Trim:", f"{trim['start_time']} to {trim['end_time']}")
+        table.add_row("Output:", output_path)
+
+        console.print()
+        console.print(
+            Panel(
+                table,
+                title="[bold cyan]Download Summary[/bold cyan]",
+                border_style="cyan",
+                padding=(0, 2),
+            )
+        )
+        console.print()
+
+    if auto_confirm:
+        return True
 
     return inquirer.confirm(
         message="Confirm and start download?",
@@ -166,7 +201,7 @@ def select_playlist_items(entries: list[dict]) -> list[dict]:
     choices = []
     for i, entry in enumerate(entries):
         title = entry.get("title", "Unknown")
-        choices.append(Choice(value=entry, name=f"{i+1}. {title}", enabled=True))
+        choices.append(Choice(value=entry, name=f"{i + 1}. {title}", enabled=True))
 
     selected = inquirer.checkbox(
         message="Select videos to download (space to toggle, enter to confirm):",
@@ -180,7 +215,7 @@ def select_playlist_items(entries: list[dict]) -> list[dict]:
 def select_playlist_range(entries: list[dict]) -> list[dict]:
     count = len(entries)
     start_num, end_num = _ask_range_bounds(count)
-    selected = entries[start_num - 1:end_num]
+    selected = entries[start_num - 1 : end_num]
     _selection_summary(selected, start_num, end_num)
     return selected
 

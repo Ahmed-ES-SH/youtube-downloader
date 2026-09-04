@@ -2,6 +2,7 @@ from pathlib import Path
 
 import yt_dlp
 
+from utils.logger import get_progress
 from utils.retry import with_retry
 
 
@@ -11,7 +12,8 @@ class DownloadError(Exception):
 
 class Downloader:
     def __init__(self):
-        pass
+        self._progress = None
+        self._task_id = None
 
     def _build_opts(self, options: dict) -> dict:
         fmt = options.get("format", "video")
@@ -19,12 +21,17 @@ class Downloader:
         output_path = options.get("output", str(Path.home() / "Downloads" / "ytdl"))
         audio_bitrate = options.get("audio_bitrate", "192")
 
-        outtmpl = str(Path(output_path) / "%(title)s.%(ext)s")
+        output_dir = Path(output_path).expanduser()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        outtmpl = str(output_dir / "%(title)s.%(ext)s")
 
         ydl_opts = {
             "outtmpl": outtmpl,
             "quiet": True,
             "no_warnings": True,
+            "nocheckcertificate": True,
+            "continuedl": True,
+            "geo_bypass": True,
             "progress_hooks": [self._progress_hook],
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -33,28 +40,37 @@ class Downloader:
             },
             "extractor_args": {
                 "youtube": {
-                    "player_client": ["android"],
+                    "player_client": ["android", "web", "ios"],
                 },
             },
-            "js_runtimes": {"nodejs": {}},
             "concurrent_fragment_downloads": 4,
+            "fragment_retries": 10,
+            "retries": 10,
+            "http_chunk_size": 10485760,
+            "socket_timeout": 30,
         }
 
         if fmt == "audio":
-            ydl_opts.update({
-                "format": "bestaudio/best",
-                "postprocessors": [{
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": audio_bitrate,
-                }],
-            })
+            ydl_opts.update(
+                {
+                    "format": "bestaudio/best",
+                    "postprocessors": [
+                        {
+                            "key": "FFmpegExtractAudio",
+                            "preferredcodec": "mp3",
+                            "preferredquality": audio_bitrate,
+                        }
+                    ],
+                }
+            )
         else:
             if quality == "best":
                 ydl_opts["format"] = "bestvideo+bestaudio/best"
             else:
                 q = quality.replace("p", "")
-                ydl_opts["format"] = f"bestvideo[height<={q}]+bestaudio/best[height<={q}]/bestvideo[height<={q}]/best"
+                ydl_opts["format"] = (
+                    f"bestvideo[height<={q}]+bestaudio/best[height<={q}]/bestvideo[height<={q}]/best"
+                )
 
         playlist_items = options.get("playlist_items")
         if playlist_items:
@@ -69,20 +85,34 @@ class Downloader:
 
         return ydl_opts
 
-    def _progress_hook(self, d):
-        if d.get("status") == "downloading":
-            total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
+    def _progress_hook(self, d: dict):
+        if self._progress is None or self._task_id is None:
+            return
+        status = d.get("status")
+        if status == "downloading":
+            total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
             downloaded = d.get("downloaded_bytes", 0)
             if total > 0:
-                pct = downloaded / total * 100
-                print(f"  \r  Downloading... {pct:.1f}%", end="", flush=True)
-        elif d.get("status") == "finished":
-            print(f"  \r  Download complete")
+                self._progress.update(self._task_id, total=total, completed=downloaded)
+        elif status == "finished":
+            self._progress.update(
+                self._task_id,
+                description="[bold green]Processing...",
+                completed=100,
+                total=100,
+            )
 
     @with_retry(max_attempts=3, delay=2.0)
     def download(self, item, options: dict):
         try:
-            with yt_dlp.YoutubeDL(self._build_opts(options)) as ydl:
-                ydl.download([item.url])
+            with get_progress() as progress:
+                self._progress = progress
+                title = item.title if len(item.title) <= 35 else f"{item.title[:32]}..."
+                self._task_id = progress.add_task(f"Downloading {title}", total=None)
+                with yt_dlp.YoutubeDL(self._build_opts(options)) as ydl:
+                    ydl.download([item.url])
         except Exception as e:
             raise DownloadError(str(e)) from e
+        finally:
+            self._progress = None
+            self._task_id = None

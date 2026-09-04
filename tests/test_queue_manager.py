@@ -1,4 +1,4 @@
-from components.queue_manager import QueueManager, ItemStatus
+from components.queue_manager import ItemStatus, QueueManager
 
 MOCK_ENTRIES = [
     {"title": "Video 1", "url": "https://yt.com/1"},

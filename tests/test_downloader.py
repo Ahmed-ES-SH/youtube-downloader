@@ -1,8 +1,9 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from components.downloader import Downloader, DownloadError
-from components.queue_manager import QueueItem, ItemStatus
+from components.queue_manager import QueueItem
 
 
 @patch("components.downloader.yt_dlp.YoutubeDL")

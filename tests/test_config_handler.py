@@ -1,8 +1,7 @@
 import json
-import pytest
-from pathlib import Path
-from unittest.mock import patch, mock_open
-from components.config_handler import load_config, save_config, AppConfig
+from unittest.mock import patch
+
+from components.config_handler import AppConfig, load_config, save_config
 
 
 def test_load_defaults_when_no_file():

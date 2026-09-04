@@ -1,7 +1,7 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from components.queue_manager import QueueManager
 from components.downloader import Downloader
+from components.queue_manager import QueueManager
 
 MOCK_ENTRIES = [
     {"title": "Video A", "url": "https://yt.com/a"},
@@ -18,7 +18,9 @@ def test_full_queue_processes_all(mock_ydl):
     downloader = Downloader()
 
     for item in queue.pending():
-        downloader.download(item, {"format": "video", "quality": "best", "output": "/tmp"})
+        downloader.download(
+            item, {"format": "video", "quality": "best", "output": "/tmp"}
+        )
         queue.mark_done(item)
 
     summary = queue.summary()

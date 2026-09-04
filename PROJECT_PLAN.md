@@ -177,25 +177,21 @@ python main.py --url "..." --use-defaults
 
 import yt_dlp
 
+
 def detect_url_type(url: str) -> dict:
     """Returns metadata about the URL without downloading."""
     ydl_opts = {"quiet": True, "extract_flat": True, "skip_download": True}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
-    
+
     if info.get("_type") == "playlist":
         return {
             "type": "playlist",
             "title": info.get("title"),
             "count": len(info.get("entries", [])),
-            "entries": info.get("entries", [])
+            "entries": info.get("entries", []),
         }
-    return {
-        "type": "video",
-        "title": info.get("title"),
-        "count": 1,
-        "entries": [info]
-    }
+    return {"type": "video", "title": info.get("title"), "count": 1, "entries": [info]}
 ```
 
 ### Queue Manager
@@ -206,11 +202,13 @@ def detect_url_type(url: str) -> dict:
 from dataclasses import dataclass, field
 from enum import Enum
 
+
 class ItemStatus(Enum):
-    PENDING  = "pending"
-    DONE     = "done"
-    FAILED   = "failed"
-    SKIPPED  = "skipped"
+    PENDING = "pending"
+    DONE = "done"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
 
 @dataclass
 class QueueItem:
@@ -220,10 +218,15 @@ class QueueItem:
     status: ItemStatus = ItemStatus.PENDING
     error: str | None = None
 
+
 class QueueManager:
     def __init__(self, entries: list[dict]):
         self.items: list[QueueItem] = [
-            QueueItem(index=i + 1, title=e.get("title", "Unknown"), url=e.get("url") or e.get("webpage_url"))
+            QueueItem(
+                index=i + 1,
+                title=e.get("title", "Unknown"),
+                url=e.get("url") or e.get("webpage_url"),
+            )
             for i, e in enumerate(entries)
         ]
 
@@ -286,18 +289,21 @@ import json
 
 CONFIG_PATH = Path.home() / ".ytdl" / "config.json"
 
+
 class AppConfig(BaseModel):
     default_output_path: str = str(Path.home() / "Downloads" / "ytdl")
-    default_format: str = "video"       # "video" | "audio"
-    default_quality: str = "best"       # "best" | "1080p" | "720p" | etc.
+    default_format: str = "video"  # "video" | "audio"
+    default_quality: str = "best"  # "best" | "1080p" | "720p" | etc.
     default_audio_bitrate: str = "192"  # kbps
     remember_last: bool = True
+
 
 def load_config() -> AppConfig:
     if CONFIG_PATH.exists():
         data = json.loads(CONFIG_PATH.read_text())
         return AppConfig(**data)
     return AppConfig()
+
 
 def save_config(config: AppConfig):
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -339,6 +345,7 @@ def save_config(config: AppConfig):
 import time
 import functools
 
+
 def with_retry(max_attempts: int = 3, delay: float = 2.0, backoff: float = 2.0):
     def decorator(func):
         @functools.wraps(func)
@@ -352,10 +359,14 @@ def with_retry(max_attempts: int = 3, delay: float = 2.0, backoff: float = 2.0):
                     attempt += 1
                     if attempt >= max_attempts:
                         raise
-                    print(f"  ⚠ Attempt {attempt} failed: {e}. Retrying in {wait:.0f}s...")
+                    print(
+                        f"  ⚠ Attempt {attempt} failed: {e}. Retrying in {wait:.0f}s..."
+                    )
                     time.sleep(wait)
                     wait *= backoff
+
         return wrapper
+
     return decorator
 ```
 
@@ -377,6 +388,7 @@ YT_URL_PATTERN = re.compile(
     r"(https?://)?(www\.)?(youtube\.com/(watch\?v=|playlist\?list=)|youtu\.be/)[\w\-]+"
 )
 
+
 def is_valid_youtube_url(url: str) -> bool:
     return bool(YT_URL_PATTERN.match(url))
 ```
@@ -394,17 +406,22 @@ import pytest
 from unittest.mock import patch, MagicMock
 from components.input_handler import detect_url_type, is_valid_youtube_url
 
+
 def test_valid_video_url():
     assert is_valid_youtube_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ") is True
+
 
 def test_valid_playlist_url():
     assert is_valid_youtube_url("https://www.youtube.com/playlist?list=PLxxx") is True
 
+
 def test_invalid_url():
     assert is_valid_youtube_url("https://vimeo.com/123456") is False
 
+
 def test_empty_url():
     assert is_valid_youtube_url("") is False
+
 
 @patch("components.input_handler.yt_dlp.YoutubeDL")
 def test_detect_playlist(mock_ydl):
@@ -412,7 +429,7 @@ def test_detect_playlist(mock_ydl):
     mock_instance.extract_info.return_value = {
         "_type": "playlist",
         "title": "Test Playlist",
-        "entries": [{"title": "Vid 1", "url": "..."}, {"title": "Vid 2", "url": "..."}]
+        "entries": [{"title": "Vid 1", "url": "..."}, {"title": "Vid 2", "url": "..."}],
     }
     mock_ydl.return_value.__enter__.return_value = mock_instance
 
@@ -420,13 +437,14 @@ def test_detect_playlist(mock_ydl):
     assert result["type"] == "playlist"
     assert result["count"] == 2
 
+
 @patch("components.input_handler.yt_dlp.YoutubeDL")
 def test_detect_single_video(mock_ydl):
     mock_instance = MagicMock()
     mock_instance.extract_info.return_value = {
         "_type": "video",
         "title": "Single Video",
-        "webpage_url": "https://youtube.com/watch?v=abc"
+        "webpage_url": "https://youtube.com/watch?v=abc",
     }
     mock_ydl.return_value.__enter__.return_value = mock_instance
 
@@ -446,25 +464,30 @@ MOCK_ENTRIES = [
     {"title": "Video 3", "url": "https://yt.com/3"},
 ]
 
+
 def test_queue_builds_correctly():
     q = QueueManager(MOCK_ENTRIES)
     assert len(q.items) == 3
     assert q.items[0].title == "Video 1"
 
+
 def test_pending_returns_all_at_start():
     q = QueueManager(MOCK_ENTRIES)
     assert len(q.pending()) == 3
+
 
 def test_mark_done_reduces_pending():
     q = QueueManager(MOCK_ENTRIES)
     q.mark_done(q.items[0])
     assert len(q.pending()) == 2
 
+
 def test_mark_failed_stores_error():
     q = QueueManager(MOCK_ENTRIES)
     q.mark_failed(q.items[1], "HTTP 403 Forbidden")
     assert q.items[1].status == ItemStatus.FAILED
     assert "403" in q.items[1].error
+
 
 def test_summary_counts():
     q = QueueManager(MOCK_ENTRIES)
@@ -475,6 +498,7 @@ def test_summary_counts():
     assert s["done"] == 2
     assert s["failed"] == 1
     assert s["total"] == 3
+
 
 def test_empty_playlist():
     q = QueueManager([])
@@ -492,6 +516,7 @@ from pathlib import Path
 from unittest.mock import patch, mock_open
 from components.config_handler import load_config, save_config, AppConfig
 
+
 def test_load_defaults_when_no_file():
     with patch("components.config_handler.CONFIG_PATH") as mock_path:
         mock_path.exists.return_value = False
@@ -499,19 +524,25 @@ def test_load_defaults_when_no_file():
         assert config.default_format == "video"
         assert config.default_quality == "best"
 
+
 def test_load_from_existing_file(tmp_path):
     config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps({
-        "default_format": "audio",
-        "default_quality": "720p",
-        "default_audio_bitrate": "320",
-        "default_output_path": "/tmp/test",
-        "remember_last": True
-    }))
+    config_file.write_text(
+        json.dumps(
+            {
+                "default_format": "audio",
+                "default_quality": "720p",
+                "default_audio_bitrate": "320",
+                "default_output_path": "/tmp/test",
+                "remember_last": True,
+            }
+        )
+    )
     with patch("components.config_handler.CONFIG_PATH", config_file):
         config = load_config()
         assert config.default_format == "audio"
         assert config.default_quality == "720p"
+
 
 def test_save_config(tmp_path):
     config_file = tmp_path / ".ytdl" / "config.json"
@@ -536,6 +567,7 @@ MOCK_ENTRIES = [
     {"title": "Video B", "url": "https://yt.com/b"},
 ]
 
+
 @patch("components.downloader.yt_dlp.YoutubeDL")
 def test_full_queue_processes_all(mock_ydl):
     mock_instance = MagicMock()
@@ -545,7 +577,9 @@ def test_full_queue_processes_all(mock_ydl):
     downloader = Downloader()
 
     for item in queue.pending():
-        downloader.download(item, {"format": "video", "quality": "best", "output": "/tmp"})
+        downloader.download(
+            item, {"format": "video", "quality": "best", "output": "/tmp"}
+        )
         queue.mark_done(item)
 
     summary = queue.summary()

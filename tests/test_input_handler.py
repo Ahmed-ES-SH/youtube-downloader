@@ -1,5 +1,5 @@
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from components.input_handler import detect_url_type, is_valid_youtube_url
 
 
@@ -9,6 +9,22 @@ def test_valid_video_url():
 
 def test_valid_playlist_url():
     assert is_valid_youtube_url("https://www.youtube.com/playlist?list=PLxxx") is True
+
+
+def test_valid_shorts_url():
+    assert is_valid_youtube_url("https://www.youtube.com/shorts/dQw4w9WgXcQ") is True
+
+
+def test_valid_mobile_url():
+    assert is_valid_youtube_url("https://m.youtube.com/watch?v=dQw4w9WgXcQ") is True
+
+
+def test_valid_music_url():
+    assert is_valid_youtube_url("https://music.youtube.com/watch?v=dQw4w9WgXcQ") is True
+
+
+def test_valid_shortener_url():
+    assert is_valid_youtube_url("https://youtu.be/dQw4w9WgXcQ") is True
 
 
 def test_invalid_url():

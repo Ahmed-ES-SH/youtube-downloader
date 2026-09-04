@@ -1,5 +1,5 @@
-import time
 import functools
+import time
 
 
 def with_retry(max_attempts: int = 3, delay: float = 2.0, backoff: float = 2.0):
@@ -15,8 +15,12 @@ def with_retry(max_attempts: int = 3, delay: float = 2.0, backoff: float = 2.0):
                     attempt += 1
                     if attempt >= max_attempts:
                         raise
-                    print(f"  \u26a0 Attempt {attempt} failed: {e}. Retrying in {wait:.0f}s...")
+                    print(
+                        f"  \u26a0 Attempt {attempt} failed: {e}. Retrying in {wait:.0f}s..."
+                    )
                     time.sleep(wait)
                     wait *= backoff
+
         return wrapper
+
     return decorator
