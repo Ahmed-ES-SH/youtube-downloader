@@ -106,8 +106,6 @@ def main(
     entries = info["entries"]
     if info["type"] == "playlist":
         if use_defaults:
-            options["playlist_items"] = "1-999999"
-            entries = [{"url": url, "title": f"Full playlist: {info['title']}"}]
             options["playlist_range"] = {
                 "start": 1,
                 "end": info["count"],
@@ -123,13 +121,12 @@ def main(
             ).execute()
             if mode == "range":
                 start, end = select_playlist_range_bounds(info["count"])
-                options["playlist_items"] = f"{start}-{end}"
                 options["playlist_range"] = {
                     "start": start,
                     "end": end,
                     "total": info["count"],
                 }
-                entries = [{"url": url, "title": f"Playlist items {start}-{end}"}]
+                entries = entries[start - 1 : end]
             else:
                 selected = select_playlist_items(entries)
                 if selected:
